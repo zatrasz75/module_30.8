@@ -1,7 +1,6 @@
 package main
 
 import (
-	"DB_Apps/pkg/postgres"
 	"DB_Apps/pkg/storage"
 	"fmt"
 	"log"
@@ -23,57 +22,92 @@ var (
 	// Подключение к БД
 	connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Shanghai", Host, Port, Users, Password, Dbname)
 )
-var db storage.Interface
+
+//var db storage.Interface
 
 func main() {
 
-	db, err := postgres.New(connStr)
+	db, err := storage.New(connStr)
 	if err != nil {
 		elog.Fatal("Нет подключения к БД \n", err.Error())
 	}
-	//db = memdb.DB{}
+
+	//Автор
+	userId, err := db.NewUser(storage.Users{
+		Name: "Name",
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	ilog.Println(userId)
+
+	//задача
+	z := storage.Task{
+		Title:   "Первая задача",
+		Content: "Создавать новые задачи",
+	}
+	task, err := db.NewTask(z)
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("id новой задачи :%v\n", task)
+
+	//----------------------------------------------------------------
+
+	//Все задачи
 	tasks, err := db.Tasks(0, 0)
 	if err != nil {
-		log.Fatal(err)
+		elog.Println(err)
 	}
-	ilog.Println(tasks)
+	ilog.Printf("Список задач: \n %v\n", tasks)
 
-	//id, _ := db.NewTask(postgres.Task{
-	//	ID:         5,
-	//	Title:      "memdb task 5",
-	//	Content:    "new task 5",
-	//	AuthorID:   5,
-	//	AssignedID: 5,
-	//})
-	//ilog.Println(id)
-	//
-	//id, _ = db.NewTask(postgres.Task{
-	//	ID:         6,
-	//	Title:      "memdb task 6",
-	//	Content:    "new task 6",
-	//	AuthorID:   6,
-	//	AssignedID: 6,
-	//})
-	//ilog.Println(id)
+	//Задача по id
+	aut, err := db.TasksAuthorId(1)
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("ищет задачи по идентификатору автора: \n%v\n", aut)
 
-	//============================================================
+	// Задача по автору
+	aut, err = db.TasksAuthor("Максим")
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("ищет задачи по имени автора: \n%v\n", aut)
 
-	//s := postgres.Task{
-	//	Title:   "ups",
-	//	Content: "Проверка связи",
-	//}
-	//
-	//id, err = db.NewTask(s)
-	//if err != nil {
-	//	return
-	//}
-	//fmt.Println(id)
+	// Задачи по id метки
+	aut, err = db.TasksLabelId(2)
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("ищет задачи по идентификатору метки : \n%v\n", aut)
 
-	//err = db.TaskDel(1)
-	//if err != nil {
-	//	return
-	//}
+	// Задачи по названию метки
+	aut, err = db.TasksLabel("Метка 3")
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("ищет задачи по названию метки : \n%v\n", aut)
 
-	//db.Tasks(task, )
+	// Обновляет заголовок задачи по id
+	err = db.UpdateTaskTitle(4, "обновление")
+	if err != nil {
+		elog.Println(err)
+	}
+	// Обновляет текст задачи по id
+	err = db.UpdateTaskContent(4, "прошло успешно")
+	if err != nil {
+		elog.Println(err)
+	}
+	// Удалить задачу
+	err = db.DeleteTask(task)
+	if err != nil {
+		elog.Println(err)
+	}
+	// Удалить пользователя
+	err = db.DeleteTask(userId)
+	if err != nil {
+		elog.Println(err)
+	}
 
 }

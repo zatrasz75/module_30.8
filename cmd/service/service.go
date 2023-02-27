@@ -75,8 +75,15 @@ func main() {
 	}
 	ilog.Printf("ищет задачи по имени автора: \n%v\n", aut)
 
+	//ID метки по имени
+	id, err := db.NameLabels("Метка 1") //==================================================
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("ищет ID по имени метки : \n%v\n", id)
+
 	// Задачи по id метки
-	aut, err = db.TasksLabelId(2)
+	aut, err = db.TasksLabelId(id)
 	if err != nil {
 		elog.Println(err)
 	}

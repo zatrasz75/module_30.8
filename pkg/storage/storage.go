@@ -39,6 +39,12 @@ type Users struct {
 	Name string
 }
 
+// Labels Метки
+type Labels struct {
+	ID   int
+	Name string
+}
+
 // NewUser Создает пользователя
 func (s *Storage) NewUser(u Users) (int, error) {
 	var id int
@@ -47,6 +53,20 @@ func (s *Storage) NewUser(u Users) (int, error) {
 		VALUES ($1) RETURNING id;
 		`,
 		u.Name,
+	).Scan(&id)
+
+	return id, err
+}
+
+// NewTask создаёт новую задачу и возвращает её id.
+func (s *Storage) NewTask(t Task) (int, error) {
+	var id int
+	err := s.db.QueryRow(context.Background(), `
+		INSERT INTO tasks (title, content)
+		VALUES ($1, $2) RETURNING id;
+		`,
+		t.Title,
+		t.Content,
 	).Scan(&id)
 
 	return id, err
@@ -98,20 +118,6 @@ func (s *Storage) Tasks(taskID, authorID int) ([]Task, error) {
 	}
 	// ВАЖНО не забыть проверить rows.Err()
 	return tasks, rows.Err()
-}
-
-// NewTask создаёт новую задачу и возвращает её id.
-func (s *Storage) NewTask(t Task) (int, error) {
-	var id int
-	err := s.db.QueryRow(context.Background(), `
-		INSERT INTO tasks (title, content)
-		VALUES ($1, $2) RETURNING id;
-		`,
-		t.Title,
-		t.Content,
-	).Scan(&id)
-
-	return id, err
 }
 
 // TasksAuthorId ищет задачи по идентификатору автора
@@ -197,6 +203,37 @@ func (s *Storage) TasksAuthor(author string) ([]Task, error) {
 	return tasks, rows.Err()
 }
 
+// NameLabels Возвращает ID метки по ее имени
+func (s *Storage) NameLabels(name string) (int, error) { //====================================
+	//	var labels []Labels
+	query := `
+		SELECT 
+			id,
+			name
+		FROM labels
+		WHERE
+			$1 = name OR name = $1
+		ORDER BY id;`
+
+	rows, err := s.db.Query(context.Background(), query, name)
+	if err != nil {
+		return 0, err
+	}
+	var id int
+	for rows.Next() {
+		var t Labels
+		err = rows.Scan(
+			&t.ID,
+			&t.Name,
+		)
+		if err != nil {
+			return 0, err
+		}
+		id = t.ID
+	}
+	return id, rows.Err()
+}
+
 // TasksLabelId ищет задачи по идентификатору метки
 func (s *Storage) TasksLabelId(labelId int) ([]Task, error) {
 	query := `SELECT 
@@ -248,7 +285,7 @@ func (s *Storage) TasksLabel(label string) ([]Task, error) {
 					assigned_id,
 					title,
 					content
-              FROM tasks, tasks_labels
+              FROM tasks
               WHERE id in (SELECT id FROM labels WHERE name=$1);`
 
 	rows, err := s.db.Query(context.Background(), query, label)
@@ -311,7 +348,7 @@ func (s *Storage) DeleteTask(id int) error {
 	return nil
 }
 
-// DeleteTask удаляет пользователя по id
+// DeleteUser удаляет пользователя по id
 func (s *Storage) DeleteUser(id int) error {
 	delet := `
 		DELETE FROM users WHERE id = $1;

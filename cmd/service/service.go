@@ -2,6 +2,7 @@ package main
 
 import (
 	"DB_Apps/pkg/storage"
+	"DB_Apps/pkg/storage/postgres"
 	"fmt"
 	"log"
 	"os"
@@ -23,96 +24,134 @@ var (
 	connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Shanghai", Host, Port, Users, Password, Dbname)
 )
 
-//var db storage.Interface
+var db storage.Interface
 
 func main() {
 
-	db, err := storage.New(connStr)
+	db, err := postgres.New(connStr)
 	if err != nil {
 		elog.Fatal("Нет подключения к БД \n", err.Error())
 	}
+	//	Заглушка для тестов
+	//db = memdb.DB{}
 
-	//Автор
-	userId, err := db.NewUser(storage.Users{
-		Name: "Name",
+	fmt.Println("Создавать новые задачи -------------------------------------------------------")
+
+	//Создаем нового автора
+	userId, err := db.NewUser(postgres.Users{
+		Name: "Михаил",
 	})
-	if err != nil {
-		fmt.Println(err)
-	}
-	ilog.Println(userId)
-
-	//задача
-	z := storage.Task{
-		Title:   "Первая задача",
-		Content: "Создавать новые задачи",
-	}
-	task, err := db.NewTask(z)
 	if err != nil {
 		elog.Println(err)
 	}
-	ilog.Printf("id новой задачи :%v\n", task)
+	ilog.Printf("id нового автора :\n%v\n", userId)
 
-	//----------------------------------------------------------------
+	// Создаём новую задачу для нового автора
+	taskId, err := db.NewTask(postgres.Task{
+		AuthorID:   userId,
+		AssignedID: userId,
+		Title:      "Задача",
+		Content:    "Krex Pex Fex",
+	})
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("id новой задачи для нового автора:\n%v\n", taskId)
 
-	//Все задачи
+	// Создаем новую метку
+	labelId, err := db.NewLabel(postgres.Labels{
+		Name: "Метка",
+	})
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("id новой метки :\n%v\n", labelId)
+
+	// Отмечаем задачу меткой
+	err = db.LabelTask(postgres.Tasks_labels{
+		Task_id:  taskId,
+		Label_id: labelId,
+	})
+	if err != nil {
+		elog.Println(err)
+	}
+
+	fmt.Println("Получать список всех задач ----------------------------------------------------")
+
+	// Получать список всех задач
 	tasks, err := db.Tasks(0, 0)
 	if err != nil {
 		elog.Println(err)
 	}
-	ilog.Printf("Список задач: \n %v\n", tasks)
+	ilog.Printf("Список всех задач: \n %v\n", tasks)
 
-	//Задача по id
-	aut, err := db.TasksAuthorId(1)
+	fmt.Println("Получать список задач по автору -----------------------------------------------")
+
+	// Ищет задачи по имени автора
+	aut, err := db.TasksAuthor("Михаил")
+	if err != nil {
+		elog.Println(err)
+	}
+	ilog.Printf("Ищет задачи по имени автора: \n%v\n", aut)
+
+	//Ищет задачи по id автора
+	aut, err = db.TasksAuthorId(userId)
 	if err != nil {
 		elog.Println(err)
 	}
 	ilog.Printf("ищет задачи по идентификатору автора: \n%v\n", aut)
 
-	// Задача по автору
-	aut, err = db.TasksAuthor("Максим")
+	fmt.Println("Получать список задач по метке ------------------------------------------------")
+
+	//Получить ID метки по её имени
+	id, err := db.NameLabels("Метка")
 	if err != nil {
 		elog.Println(err)
 	}
-	ilog.Printf("ищет задачи по имени автора: \n%v\n", aut)
+	ilog.Printf("Получить ID по её имени : \n%v\n", id)
 
-	//ID метки по имени
-	id, err := db.NameLabels("Метка 1") //==================================================
-	if err != nil {
-		elog.Println(err)
-	}
-	ilog.Printf("ищет ID по имени метки : \n%v\n", id)
-
-	// Задачи по id метки
+	// Получить задачи по id метки
 	aut, err = db.TasksLabelId(id)
 	if err != nil {
 		elog.Println(err)
 	}
-	ilog.Printf("ищет задачи по идентификатору метки : \n%v\n", aut)
+	ilog.Printf("ищет задачи по id метки : \n%v\n", aut)
 
-	// Задачи по названию метки
-	aut, err = db.TasksLabel("Метка 3")
-	if err != nil {
-		elog.Println(err)
-	}
-	ilog.Printf("ищет задачи по названию метки : \n%v\n", aut)
+	fmt.Println("Обновлять задачу по id -------------------------------------------------------")
 
 	// Обновляет заголовок задачи по id
-	err = db.UpdateTaskTitle(4, "обновление")
+	err = db.UpdateTaskTitle(taskId, "обновление")
 	if err != nil {
 		elog.Println(err)
 	}
 	// Обновляет текст задачи по id
-	err = db.UpdateTaskContent(4, "прошло успешно")
+	err = db.UpdateTaskContent(taskId, "прошло успешно")
 	if err != nil {
 		elog.Println(err)
 	}
+
+	fmt.Println("Удалять задачу по id ---------------------------------------------------------")
+
+	// Удаляет пометку задачи по id
+	err = db.DelTaskLabel(taskId)
+	if err != nil {
+		elog.Println(err)
+	}
+
 	// Удалить задачу
-	err = db.DeleteTask(task)
+	err = db.DeleteTask(taskId)
 	if err != nil {
 		elog.Println(err)
 	}
-	// Удалить пользователя
-	err = db.DeleteTask(userId)
+
+	// Удалить автора
+	err = db.DeleteUser(userId)
+	if err != nil {
+		elog.Println(err)
+	}
+
+	// Удалить метку
+	err = db.DeleteLabel(labelId)
 	if err != nil {
 		elog.Println(err)
 	}

@@ -1,4 +1,4 @@
-package storage
+package postgres
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func New(constr string) (*Storage, error) {
 	return &s, nil
 }
 
-// Task Задача.
+// Task Задачи.
 type Task struct {
 	ID         int
 	Opened     int64
@@ -45,6 +45,12 @@ type Labels struct {
 	Name string
 }
 
+// Tasks_labels Метки для задач
+type Tasks_labels struct {
+	Task_id  int
+	Label_id int
+}
+
 // NewUser Создает пользователя
 func (s *Storage) NewUser(u Users) (int, error) {
 	var id int
@@ -62,14 +68,44 @@ func (s *Storage) NewUser(u Users) (int, error) {
 func (s *Storage) NewTask(t Task) (int, error) {
 	var id int
 	err := s.db.QueryRow(context.Background(), `
-		INSERT INTO tasks (title, content)
-		VALUES ($1, $2) RETURNING id;
+		INSERT INTO tasks (author_id, assigned_id, title, content)
+		VALUES ($1, $2, $3, $4) RETURNING id;
 		`,
+		t.AuthorID,
+		t.AssignedID,
 		t.Title,
 		t.Content,
 	).Scan(&id)
 
 	return id, err
+}
+
+// NewLabel Создает новую метку и возвращает её id.
+func (s *Storage) NewLabel(l Labels) (int, error) {
+	var id int
+	err := s.db.QueryRow(context.Background(), `
+		INSERT INTO labels (name)
+		VALUES ($1) RETURNING id;
+		`,
+		l.Name,
+	).Scan(&id)
+
+	return id, err
+}
+
+// LabelTask Отмечаем задачу меткой
+func (s *Storage) LabelTask(lt Tasks_labels) error {
+	_, err := s.db.Exec(context.Background(), `
+		INSERT INTO tasks_labels (task_id, label_id)
+		VALUES ($1, $2) ;
+		`,
+		lt.Task_id,
+		lt.Label_id,
+	)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 // Tasks возвращает список задач из БД.
@@ -204,8 +240,8 @@ func (s *Storage) TasksAuthor(author string) ([]Task, error) {
 }
 
 // NameLabels Возвращает ID метки по ее имени
-func (s *Storage) NameLabels(name string) (int, error) { //====================================
-	//	var labels []Labels
+func (s *Storage) NameLabels(name string) (int, error) {
+
 	query := `
 		SELECT 
 			id,
@@ -275,47 +311,6 @@ func (s *Storage) TasksLabelId(labelId int) ([]Task, error) {
 	return tasks, rows.Err()
 }
 
-// TasksLabel ищет задачи по названию метки
-func (s *Storage) TasksLabel(label string) ([]Task, error) {
-	query := `SELECT 
-					id,
-					opened,
-					closed,
-					author_id,
-					assigned_id,
-					title,
-					content
-              FROM tasks
-              WHERE id in (SELECT id FROM labels WHERE name=$1);`
-
-	rows, err := s.db.Query(context.Background(), query, label)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var tasks []Task
-
-	for rows.Next() {
-		var t Task
-		err = rows.Scan(
-			&t.ID,
-			&t.Opened,
-			&t.Closed,
-			&t.AuthorID,
-			&t.AssignedID,
-			&t.Title,
-			&t.Content,
-		)
-		if err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, t)
-
-	}
-	return tasks, rows.Err()
-}
-
 // UpdateTaskTitle обновляет заголовок задачи по id
 func (s *Storage) UpdateTaskTitle(id int, title string) error {
 	query := `UPDATE tasks SET title = $2 WHERE id = $1;`
@@ -330,6 +325,18 @@ func (s *Storage) UpdateTaskTitle(id int, title string) error {
 func (s *Storage) UpdateTaskContent(id int, content string) error {
 	query := `UPDATE tasks SET content = $2 WHERE id = $1;`
 	_, err := s.db.Exec(context.Background(), query, id, content)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// DelTaskLabel удаляет пометку задачи по id
+func (s *Storage) DelTaskLabel(taskID int) error {
+	delet := `
+		DELETE FROM tasks_labels WHERE task_id = $1;
+	`
+	_, err := s.db.Exec(context.Background(), delet, taskID)
 	if err != nil {
 		return err
 	}
@@ -354,6 +361,18 @@ func (s *Storage) DeleteUser(id int) error {
 		DELETE FROM users WHERE id = $1;
 	`
 	_, err := s.db.Exec(context.Background(), delet, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteLabel удаляет метку по id
+func (s *Storage) DeleteLabel(labelId int) error {
+	delet := `
+		DELETE FROM labels WHERE id = $1;
+	`
+	_, err := s.db.Exec(context.Background(), delet, labelId)
 	if err != nil {
 		return err
 	}
